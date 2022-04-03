@@ -4,7 +4,7 @@
 
 #first let's make a tile system
 import pygame
-from math import pi, radians, sin, cos, tan
+from math import pi, radians, sin, cos, tan, floor
 from pygame.locals import (
     QUIT,
     MOUSEBUTTONDOWN,
@@ -13,6 +13,8 @@ from pygame.locals import (
     KEYDOWN,
 )
 TILE_SIZE = 32
+FIRSTQUAD = pi/2
+THIRDQUAD = 3*pi/2
 
 from random import randint
 Default_Map = [
@@ -74,20 +76,46 @@ class TileObjects(screenObjects):
 class PlayerObject(screenObjects):
     def  __init__(self, x, y):
         super().__init__(x, y)
-        self.image = pygame.surface.Surface((TILE_SIZE/2, TILE_SIZE/2))
+        self.image = pygame.surface.Surface((TILE_SIZE/4, TILE_SIZE/4))
         self.image.fill((255,0,255))
     
-    def findXYandDxDy(self):
-        tilePos = self.x//TILE_SIZE*TILE_SIZE, self.y//TILE_SIZE*TILE_SIZE
-        #return *tilePos, tilePos[0]-self.x, tilePos[1]-self.y
-        return *tilePos, self.x-tilePos[0], self.y- tilePos[1]
+    def findXY(self):
+        return self.x//TILE_SIZE*TILE_SIZE, self.y//TILE_SIZE*TILE_SIZE
+    
+    def findtileXY(self):
+        return self.x//TILE_SIZE, self.y//TILE_SIZE
     
     def screenPos(self):
         return (self.x - self.image.get_width()/2, self.y - self.image.get_height()/2)
+    def DXDY(self):
+        tilex, tiley = self.findXY()
+        dy = self.y - tiley
+        dx = self.x - tilex
+        return dx, dy
+    def tileDXDY(self):
+        tilex, tiley = self.findXY()
+        dy = self.y - tiley
+        dx = self.x - tilex
+        return dx/TILE_SIZE, dy/TILE_SIZE
 
-
-
-
+    def findRelativeCoordinates(self, theta):
+        tilex, tiley = self.findXY()
+        if 0<theta<180: # theta going upwards in diagram
+            dy = self.y - tiley
+        else:# theta going downwards
+            dy = (self.y - tiley) - TILE_SIZE
+        if 90<theta<270: # theta going left
+            dx = self.x - tilex
+        else: # theta going right
+            dx = (self.x - tilex) - TILE_SIZE
+        
+        return (
+            self.x - tilex, #player x position within the tile
+            self.y - tiley, #player y position within the tile
+            dx, dy, #player direction distance to the grid boundary
+            tilex, tiley # tile position
+        )
+    
 #first lets state some stuff
 #x and y is the position the player is relative to the tile system. not the actual coordinate. for this. this will be a multiple of 32
 #dx and dy is what position the player is relative inside the tile it is in. 
@@ -97,6 +125,69 @@ class PlayerObject(screenObjects):
 # where theta is the ray angle. 
 
 #due to pygame radians going anti - clockwise this would mean that I'm gonna formalise it to clockwise
+
+# if theta is in the first quadrant, x+, y-, 2nd - x-, y-. 3rd -  x-, y+, 4th - x+, y+
+
+#i*pi/4 where i is range(8)
+# sin [0.0, 0.7071, 1.0, 0.7071, 0.0, -0.7071, -1.0, -0.7071]
+# cos [1.0, 0.7071, 0.0, -0.7071, -1.0, -0.7071, -0.0, 0.7071]
+# tan [0.0, 1.0, BIG, -1.0, -0.0, 1.0, BIG, -1.0]
+# tan - pos pos, neg pos, neg neg, pos neg
+
+def calculate_angle(theta, PLAYER, theMap):
+
+    px, py, dx, dy, tilex, tiley, = PLAYER.findRelativeCoordinates(theta)
+    #print (px, py, dx, dy, tilex, tiley)
+    theta = radians(theta)
+    ratio = 1/tan(theta) if tan(theta) else 100
+    xIntercept = tilex + px + dy*ratio # the x coordinate of the ray passing the first row
+    yRow = tiley + py - dy
+    yIntercept = tiley + py + dx/ratio # the y coordinate of the ray passing the first coloumn
+    xRow = tilex + px - dx
+    #print (dx)
+    #print (xIntercept, yRow, yIntercept, xRow)
+    return ((xIntercept, yRow), (xRow, yIntercept))
+
+
+
+              
+##        theta = radians(theta)
+##        #print (theta)
+##        x, y= PLAYER.findXY()
+##        tilex, tiley = PLAYER.findtileXY()
+##        dx, dy = PLAYER.DXDY()
+##        tiledx, tiledy = PLAYER.tileDXDY()
+##        # print (tan(7*pi/4), tan(pi/4))
+##        # I had to negate (dy,dx)/tan(theta) since it never did the actual collision spots. 
+##        # Looking back at it it could have done. it just starts at the -1 of the collision.
+##
+##        deltax, deltay = -tan(theta), 1/tan(theta)
+##        #print (deltax, deltay)
+##
+##        #---check horizontal
+##
+##        xIntercept = x+dx-dy/tan(theta) # the x coordinate of the ray passing the first row
+##        yIntercept = y+dy+dx/tan(theta) # the y coordinate of the ray passing the first coloumn
+##        
+##        tilexIntercept = tilex+tiledx-tiledy/tan(theta)
+##        tileyIntercept = tiley+tiledy+tiledx/tan(theta)
+##        
+##        print (f'({tilexIntercept}, {tiley}), ({tileyIntercept}, {tilex}), {xStep}, {yStep}')
+##        
+##        #figure out theta,
+##
+##        #find vertical collision
+##        #x is tilex and y is tiley
+####        while 0 <= tileyIntercept < 24:
+####            #print (tilex, tileyIntercept)
+####            if theMap[floor(tileyIntercept)][tilex].val:
+####                theMap[floor(tileyIntercept)][tilex].image.fill((255,0,0))
+####                
+####                break
+####            tilex += xStep
+####            tileyIntercept += deltax
+            
+
 
 def cw(angle):
     '''
@@ -121,11 +212,10 @@ def main():
     SCREEN_SIZE = (SCREEN_WIDTH, SCREEN_HEIGHT)
     SCREEN = pygame.display.set_mode(SCREEN_SIZE)
     TILES, theMap = Overview.createTiles(SCREEN_SIZE, TILE_SIZE)
-    PLAYER = PlayerObject(234, 210)
-    RAYANGLE = radians(315)
+    PLAYER = PlayerObject(234, 210) # 224, 192 -> 256, 224
+    #theta = radians(45)
     clock = pygame.time.Clock()
-    theta = cw(RAYANGLE)
-    
+    e = 45
     program_running = True
     while program_running:
         #Event
@@ -136,33 +226,31 @@ def main():
             elif event.type == QUIT: #<show> if new event is quit
                 program_running = False
 
-        x, y, dx, dy = PLAYER.findXYandDxDy()
-        print (x, y, dx, dy)
-        # print (tan(7*pi/4), tan(pi/4))
-        # I had to negate (dy,dx)/tan(theta) since it never did the actual collision spots. 
-        # Looking back at it it could have done. it just starts at the -1 of the collision.
-        xStep, yStep = tan(theta),1/tan(theta)
-        xIntercept = x+dx + dy/tan(theta)# this is the first row collision
-        yIntercept = y+dy - dx/tan(theta) # this is the first coloumn collision
-        print (xIntercept, yIntercept)
-        deltax = -tan(theta) # y offset between each collision of deltax
-        deltay = 1/tan(theta)# x offset between each collsion of deltay
-
+        for tile in TILES:
+            tile.image.fill((255, 255, 255))
+        
+        xinter, yinter = calculate_angle(e%360, PLAYER, theMap)
+        SCREEN.fill((0,0,0))
         drawGridLine(SCREEN, TILE_SIZE)
         #Drawing
         for tile in TILES:
             if tile.val:
                 SCREEN.blit(tile.image, (tile.x, tile.y))
         SCREEN.blit(PLAYER.image, PLAYER.screenPos())
-        pygame.draw.line(SCREEN, (0,255,0), (PLAYER.x, PLAYER.y), (PLAYER.x+cos(RAYANGLE)*30, PLAYER.y+sin(RAYANGLE)*30), width=2)
+        
+        pygame.draw.line(SCREEN, (0,255,0), (PLAYER.x, PLAYER.y), (PLAYER.x+cos(radians(e))*30, PLAYER.y-sin(radians(e))*30))
+        pygame.draw.line(SCREEN, (255,0,0), (PLAYER.x, PLAYER.y),xinter)
+        pygame.draw.line(SCREEN, (0,0,255), (PLAYER.x, PLAYER.y),yinter)
+        #pygame.draw.line(SCREEN, (0,255,0), (PLAYER.x, PLAYER.y), (xIntercept, 192))
         pygame.display.update()
-        break
+        e += 1
+        #break
 
+        clock.tick(20)
 
-
-        #clock.tick()
-        #print(clock.get_fps())
-
+        # clock.tick()
+        # print(clock.get_fps())
+    pygame.display.quit()
 
 
 
