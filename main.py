@@ -160,7 +160,7 @@ def calculate_angle(theta, PLAYER, theMap):
     if isclose(0, theta):  # have to do this due to dividing by 0 cause a math error
         # IT JUST NEVER CONNECTS TO A ROW, tempted to just put None
         xIntercept = tilex + px + 100_000
-        yIntercept = tiley + py
+        yIntercept = None
         deltax = 0
         deltay = None # should be none 1000
     elif isclose(FIRSTQUAD, theta):  # tan is also supposed to produce a math error but instead it produce a large value which is positive which is an issue since it needs to be negative.
@@ -172,23 +172,46 @@ def calculate_angle(theta, PLAYER, theMap):
     elif isclose(pi, theta): # tan is supposed to produce 0 but instead produce a very small negative number which inverts the xIntercept
         # IT JUST NEVER CONNECTS TO A ROW, tempted to just put None
         xIntercept = tilex + px - 100_000
-        yIntercept = tiley + py
+        yIntercept = None
         deltax = 0
         deltay = None # Should be None
     else:
         ratio = tan(theta)
-        # the y coordinate of the ray passing the first coloumn
-        xIntercept = tilex + px + dy/ratio
         # the x coordinate of the ray passing the first row
+        xIntercept = tilex + px + dy/ratio
+        # the y coordinate of the ray passing the first coloumn
         yIntercept = tiley + py + dx*ratio
-        deltax = tan(theta)
-        deltay = 1/tan(theta)
-    
-    print (tileStepX, tileStepY)
+        deltay = abs(tan(theta)) # distance on how far x increase for y to increase by 1
+        deltax = 1/tan(theta)  # distance on how far y increase for x to increase by 1
+    #print (tileStepX, tileStepY)
     #print (deltax, deltay)
     yRow = tiley + py - dy
-    xRow = tilex + px - dx
-    return ((xIntercept, yRow), (xRow, yIntercept))
+    xCol = tilex + px - dx
+
+    x = tilex//TILE_SIZE+tileStepX
+    y = tiley//TILE_SIZE+tileStepY
+
+
+    #print (f'x: {tilex} to {x}, y: {tiley} to {y}')
+    # if yIntercept is not None: #If it is not moving horizontally
+    #     while yIntercept < 768:
+    #         print (yIntercept)
+    #         if theMap[int(y)][int(yIntercept//TILE_SIZE)].val:
+    #             #print('yoo')
+    #             break
+    #         y+=tileStepY
+    #         yIntercept += deltay
+    f = yIntercept
+    g = xCol
+    if yIntercept is not None:
+        for i in range(4):
+            
+            
+            xCol += tileStepX*TILE_SIZE
+            yIntercept += deltay*TILE_SIZE*tileStepY
+            
+             
+    return ((g, f),(xCol, yIntercept)) if yIntercept else ((0,0),(0,0))
 
 
 ##        theta = radians(theta)
@@ -249,9 +272,9 @@ def drawGridLine(SCREEN, TILE_SIZE):
     for y in range(0, height, TILE_SIZE):
         pygame.draw.line(SCREEN, (64, 64, 64), (0, y), (width, y))
 
-def drawLineFromPlayer(SCREEN, PLAYER, *points):
+def drawLineFromPlayer(SCREEN, PLAYER, *points, col=(0, 255, 255)):
     for point in points:
-        pygame.draw.line(SCREEN, (0, 255, 255), (PLAYER.x, PLAYER.y), point)
+        pygame.draw.line(SCREEN, col, (PLAYER.x, PLAYER.y), point)
 
 
 def main():
@@ -265,6 +288,10 @@ def main():
     clock = pygame.time.Clock()
     e = 0
     program_running = True
+    for y, row in enumerate(theMap):
+        for x, tile in enumerate(row):
+            if (x,y) != (tile.x, tile.y):
+                print (x, y, tile.x, tile.y)
     while program_running:
         # Event
         for event in pygame.event.get():  # <show> for new events happening
@@ -277,7 +304,7 @@ def main():
         for tile in TILES:
             tile.image.fill((255, 255, 255))
 
-        points = calculate_angle(e % 360, PLAYER, theMap)
+        intercept, orderOne = calculate_angle(e % 360, PLAYER, theMap)
         SCREEN.fill((0, 0, 0))
         drawGridLine(SCREEN, TILE_SIZE)
         # Drawing
@@ -286,20 +313,21 @@ def main():
                 SCREEN.blit(tile.image, (tile.x, tile.y))
         SCREEN.blit(PLAYER.image, PLAYER.screenPos())
 
-        pygame.draw.line(SCREEN, (0, 255, 0), (PLAYER.x, PLAYER.y),
-                         (PLAYER.x+cos(radians(e))*100, PLAYER.y-sin(radians(e))*100))
-        drawLineFromPlayer(SCREEN, PLAYER, *points)
+        # pygame.draw.line(SCREEN, (0, 255, 0), (PLAYER.x, PLAYER.y),
+        #                  (PLAYER.x+cos(radians(e))*100, PLAYER.y-sin(radians(e))*100))
+        drawLineFromPlayer(SCREEN, PLAYER, orderOne, col=(255,0,255))
+        #drawLineFromPlayer(SCREEN, PLAYER, intercept)
 
         #pygame.draw.line(SCREEN, (0,255,0), (PLAYER.x, PLAYER.y), (xIntercept, 192))
         pygame.display.update()
-        print (e)
-        e += 10
+        #print (e)
+        e += 1
         # break
         
-        sleep(10)
+        clock.tick(10)
 
         # clock.tick()
-        # print(clock.get_fps())
+        #print(clock.get_fps())
     pygame.display.quit()
 
 
